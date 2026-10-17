@@ -1,0 +1,18 @@
+{
+  "name": "open-music",
+  "version": "0.1.0",
+  "description": "Deterministic procedural music generator for open-beauty-site rooms. No samples, no APIs, no copyright.",
+  "type": "module",
+  "bin": {
+    "open-music": "./src/cli.js"
+  },
+  "scripts": {
+    "generate": "node src/cli.js generate --preset galactic --out examples/ram-orbital-suite.mp3",
+    "list": "node src/cli.js presets"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": ["music", "procedural", "synth", "wav", "mp3", "space-disco"],
+  "license": "MIT"
+}

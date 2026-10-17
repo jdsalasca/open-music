@@ -1,0 +1,4 @@
+node_modules/
+*.wav
+qa-*.png
+qa-*.mp3
