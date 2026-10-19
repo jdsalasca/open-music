@@ -760,9 +760,9 @@ export class Studio {
    * Wordless choir: detuned saws plus a breath-noise layer, sung with a slow
    * swell and heavy reverb.
    * @param {number} start @param {number} duration @param {number[]} midis
-   * @param {{ gain?: number, pan?: number, attack?: number, reverb?: number, bus?: string, track?: string | null, velocity?: number }} [opts]
+   * @param {{ gain?: number, pan?: number, attack?: number, release?: number, cutoff?: number, res?: number, reverb?: number, bus?: string, track?: string | null, velocity?: number }} [opts]
    */
-  choir(start, duration, midis, { gain = 0.055, attack = 0.9, reverb = 0.62, bus = null, track = null, velocity = 1 } = {}) {
+  choir(start, duration, midis, { gain = 0.055, attack = 0.9, release = 1.8, cutoff = 1150, res = 0.75, reverb = 0.62, bus = null, track = null, velocity = 1 } = {}) {
     const n = Math.max(1, midis.length);
     midis.forEach((midi, index) => {
       const spread = n === 1 ? 0 : (index / (n - 1) - 0.5) * 1.1;
@@ -775,10 +775,10 @@ export class Studio {
         attack,
         decay: 0.6,
         sustain: 0.8,
-        release: 1.8,
+        release,
         pan: spread,
-        cutoff: 1150,
-        res: 0.75,
+        cutoff,
+        res,
         filterEnv: 0.5,
         filterDecay: 2,
         unison: 3,
@@ -840,6 +840,57 @@ export class Studio {
       if (delay > 0) {
         this.delL[idx] += s * pg.l * delay;
         this.delR[idx] += s * pg.r * delay;
+      }
+    }
+  }
+
+  /**
+   * Rhodes-style electric piano.
+   *
+   * Two-operator FM: a modulation index that decays fast gives the bell-like
+   * tine attack over a mellow body, which is what makes the sound read as a
+   * Rhodes rather than a sine. The slow amplitude wobble is the suitcase
+   * tremolo. A real Rhodes sample would be a sample; this is synthesis.
+   *
+   * @param {number} start @param {number} duration @param {number} midi
+   * @param {{ gain?: number, pan?: number, reverb?: number, delay?: number, tremolo?: number, cents?: number, ring?: number, release?: number, bus?: string, track?: string | null, velocity?: number }} [opts]
+   */
+  electricPiano(start, duration, midi, { gain = 0.13, pan = 0, reverb = 0.3, delay = 0.06, tremolo = 5.1, cents = 0, ring = 0.8, release = 0.45, bus = null, track = null, velocity = 1 } = {}) {
+    const sr = this.sr;
+    const freq = midiToFreq(midi) * 2 ** (cents / 1200);
+    const begin = Math.max(0, Math.floor(start * sr));
+    const hold = Math.max(duration, 0.2);
+    const tail = hold + Math.max(0.05, ring) + Math.max(0.05, release);
+    const end = Math.min(this.length, begin + Math.floor(tail * sr));
+    if (end <= begin) return;
+    const b = this.busFor(bus, track);
+    const pg = this.panGains(pan);
+    const scale = Math.min(1, 700 / freq);
+    const out = gain * velocity * scale;
+    const index0 = 1.6 + velocity * 1.2;
+    this.stats.notes += 1;
+    this.record({ track, start, duration: hold, midi, velocity });
+    for (let i = 0; i < end - begin; i += 1) {
+      const t = i / sr;
+      const angle = TAU * freq * t;
+      const index = index0 * Math.exp(-t * 5.5);
+      const carrier = Math.sin(angle + Math.sin(angle) * index);
+      const tine = Math.sin(angle * 2) * 0.11 * Math.exp(-t * 4.5);
+      const body = Math.exp(-t * 1.25);
+      const attack = Math.min(1, i / Math.max(1, sr * 0.003));
+      const wobble = 1 + 0.11 * Math.sin(TAU * tremolo * t) * Math.min(1, t * 1.6);
+      const decay = t > hold ? Math.max(0, 1 - (t - hold) / Math.max(0.05, release)) : 1;
+      const s = (carrier + tine) * body * attack * wobble * decay * out;
+      const k = begin + i;
+      b.left[k] += s * pg.l;
+      b.right[k] += s * pg.r;
+      if (reverb > 0) {
+        this.revL[k] += s * pg.l * reverb;
+        this.revR[k] += s * pg.r * reverb;
+      }
+      if (delay > 0) {
+        this.delL[k] += s * pg.l * delay;
+        this.delR[k] += s * pg.r * delay;
       }
     }
   }

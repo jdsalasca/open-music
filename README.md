@@ -16,6 +16,7 @@ Zero dependencies. Only Node and (optionally) `ffmpeg` for MP3.
 | --- | --- | --- | --- |
 | `galactic` | Orbital Suite | Space disco in D dorian, 108 BPM | 160 s |
 | `dark-fantasy` | Dark Fantasy Suite | Cinematic orchestral soul in F minor, 72 BPM | 267 s |
+| `bound-soul` | Bound Soul | Chopped soul in B-flat major, 94 BPM | 204 s |
 
 ### `galactic` — Orbital Suite
 
@@ -32,6 +33,19 @@ Inspired by the *production aesthetic* of maximalist, opulent orchestral hip-hop
 ```bash
 node src/cli.js form --preset dark-fantasy
 # Dark Fantasy Suite: overture:8 ascension:8 fanfare:16 procession:16 interlude:8 climax:16 coda:8
+```
+
+### `bound-soul` — Bound Soul
+
+Chopped soul: a staccato Rhodes comp, a round electric bass, a doo-wop vocal loop on the offbeats, a sung hook, string swells, tambourine and laid-back boom-bap drums with swung eighths. Eighty bars over two eight-bar turnarounds — I–vi–ii–V in the verses, I–vi–IV–V in the hooks, the borrowed IV being what makes a soul progression lift.
+
+The Rhodes is real synthesis: two-operator FM with a modulation index that decays fast enough to give the bell-like tine attack before settling into a mellow body, plus the suitcase tremolo. Chops drift a few cents and land a hair off the grid on purpose.
+
+Inspired by the production aesthetic of chopped-soul, gospel-tinged, sample-based hip-hop — the register of a record like Kanye West's "Bound 2". Every note is generated from the seed: no samples, no interpolations, no quotations.
+
+```bash
+node src/cli.js form --preset bound-soul
+# Bound Soul: intro:8 verse:16 hook:16 break:8 hook2:16 outro:16
 ```
 
 ## CLI
@@ -63,15 +77,16 @@ The duration is honoured by **rescaling the form**, not by truncating it. `--dur
 ```text
 src/
 ├── dsp.js          PolyBLEP oscillators, TPT state-variable filter, reverb,
-│                   tempo-synced ping-pong delay, look-ahead limiter, LUFS
-├── synth.js        Studio: buses, sends, ~25 voices, mixdown, WAV writer, ffmpeg
+│                   tempo-synced ping-pong delay, true-peak limiter, LUFS
+├── synth.js        Studio: buses, sends, ~26 voices, mixdown, WAV writer, ffmpeg
 ├── theory.js       Notes, scales, chords, roman numerals, voice leading
 ├── arrangement.js  Declarative song form that scales to any duration
 ├── midi.js         Score accumulator and Standard MIDI File writer
 ├── cli.js          Argument parsing, preset discovery, rendering pipeline
 └── presets/
     ├── galactic.js
-    └── dark-fantasy.js
+    ├── dark-fantasy.js
+    └── bound-soul.js
 ```
 
 Signal flow:
@@ -88,6 +103,7 @@ Notable choices:
 
 - **Band-limited oscillators.** Saw and square use PolyBLEP, so high arpeggios do not fold aliases back into the audible range.
 - **Resonant filter with its own envelope.** Voices run through a TPT state-variable filter whose cutoff is modulated per note, which is where most of the character comes from.
+- **FM electric piano.** The Rhodes is a two-operator FM voice with a decaying modulation index — the bell-like tine attack is the modulation decaying out, not a sample.
 - **Single static loudness gain.** The mix is measured with ITU-R BS.1770 gated loudness and scaled *once* to −14 LUFS, then caught by a look-ahead limiter. No dynamic normalisation, so the arrangement keeps its internal dynamics and ffmpeg never resamples the file.
 - **True-peak limiting.** The limiter evaluates the waveform *between* samples, not just the sample values, and masters to −1.4 dBFS so the reconstructed signal stays under 0 dBFS. A sample-only limiter lets a bright mix overshoot by more than a decibel, which clips on playback and gets worse through a lossy encoder.
 - **Tempo-synced delay.** Delay times are derived from the preset BPM, so echoes sit on the grid.

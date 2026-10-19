@@ -24,6 +24,7 @@
     "form": "node src/cli.js form --preset dark-fantasy",
     "generate": "node src/cli.js generate --preset galactic --out galactic.mp3",
     "generate:dark-fantasy": "node src/cli.js generate --preset dark-fantasy --out dark-fantasy-suite.mp3",
+    "generate:bound-soul": "node src/cli.js generate --preset bound-soul --out bound-soul.mp3",
     "smoke": "node src/cli.js generate --preset dark-fantasy --duration 20 --out smoke.mp3"
   },
   "engines": {
@@ -38,6 +39,7 @@
     "orchestral",
     "cinematic",
     "score",
+    "soul",
     "dsp",
     "wav",
     "midi",
