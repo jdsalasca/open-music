@@ -1,18 +1,55 @@
 {
   "name": "open-music",
-  "version": "0.1.0",
-  "description": "Deterministic procedural music generator for open-beauty-site rooms. No samples, no APIs, no copyright.",
+  "version": "0.2.0",
+  "description": "Deterministic procedural music engine: turns a seed into an original track with no samples, no APIs and no third-party rights.",
   "type": "module",
   "bin": {
     "open-music": "./src/cli.js"
   },
+  "exports": {
+    ".": "./src/synth.js",
+    "./synth": "./src/synth.js",
+    "./dsp": "./src/dsp.js",
+    "./theory": "./src/theory.js",
+    "./midi": "./src/midi.js",
+    "./arrangement": "./src/arrangement.js",
+    "./presets/*": "./src/presets/*.js"
+  },
+  "files": [
+    "src"
+  ],
   "scripts": {
-    "generate": "node src/cli.js generate --preset galactic --out examples/ram-orbital-suite.mp3",
-    "list": "node src/cli.js presets"
+    "test": "node --test",
+    "presets": "node src/cli.js presets",
+    "form": "node src/cli.js form --preset dark-fantasy",
+    "generate": "node src/cli.js generate --preset galactic --out galactic.mp3",
+    "generate:dark-fantasy": "node src/cli.js generate --preset dark-fantasy --out dark-fantasy-suite.mp3",
+    "smoke": "node src/cli.js generate --preset dark-fantasy --duration 20 --out smoke.mp3"
   },
   "engines": {
     "node": ">=22"
   },
-  "keywords": ["music", "procedural", "synth", "wav", "mp3", "space-disco"],
+  "keywords": [
+    "music",
+    "procedural",
+    "generative",
+    "synth",
+    "synthesis",
+    "orchestral",
+    "cinematic",
+    "score",
+    "dsp",
+    "wav",
+    "midi",
+    "space-disco"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jdsalasca/open-music.git"
+  },
+  "homepage": "https://github.com/jdsalasca/open-music#readme",
+  "bugs": {
+    "url": "https://github.com/jdsalasca/open-music/issues"
+  },
   "license": "MIT"
 }

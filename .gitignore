@@ -1,4 +1,14 @@
 node_modules/
+
+# Rendered audio. The demo committed under examples/ is tracked explicitly.
 *.wav
+/*.mp3
+*.mid
+!examples/*.mid
+
+# QA plots and scratch renders
 qa-*.png
 qa-*.mp3
+
+.DS_Store
+Thumbs.db

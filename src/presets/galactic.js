@@ -1,136 +1,314 @@
-import { Studio, midiToFreq } from '../synth.js';
+/**
+ * galactic.js — space-disco preset.
+ *
+ * "Orbital Suite" is original space-disco in D dorian: warm analog pads,
+ * syncopated bass, glass arpeggios and a wordless lead.
+ *
+ * It is an original atmosphere inspired by the palette of late-70s/early-80s
+ * cosmic disco and the record it evokes. It contains no samples, no quotations
+ * and no material from any existing recording or composition.
+ */
+
+import { Studio } from '../synth.js';
+import { Arrangement, describeForm } from '../arrangement.js';
+import { SCALES, parseDegree, voiceLead, noteToMidi, midiToFreq } from '../theory.js';
+import { mulberry32 } from '../dsp.js';
 
 const BPM = 108;
-const BEAT = 60 / BPM;
-const BAR = BEAT * 4;
-const TOTAL_BARS = 72;
+const BEATS_PER_BAR = 4;
+const KEY = noteToMidi('D3'); // 50
+const SCALE = 'dorian';
+const STEPS = SCALES[SCALE];
+const NATURAL_BARS = 72;
 
-const CHORDS = [
-  { name: 'Dm9', root: 38, notes: [53, 57, 60, 64], color: [65, 69, 72] },
-  { name: 'Bbmaj7', root: 34, notes: [50, 53, 57, 60], color: [62, 65, 69] },
-  { name: 'Gm7', root: 31, notes: [46, 50, 53, 58], color: [58, 62, 65] },
-  { name: 'A7sus4', root: 33, notes: [50, 52, 55, 57], color: [60, 64, 67] },
+/** Chord cycle: two bars each, so the progression is eight bars long. */
+const PROGRESSION = ['i9', 'bVImaj7', 'iv7', 'Vsus4'];
+const BARS_PER_CHORD = 2;
+
+/** @type {import('../arrangement.js').Section[]} */
+const SECTIONS = [
+  { name: 'intro', bars: 8, intensity: 0.18, layers: ['pad', 'vinyl', 'sweep'] },
+  { name: 'groove', bars: 24, intensity: 0.55, layers: ['pad', 'drums', 'bass', 'arp', 'vinyl'] },
+  { name: 'break', bars: 16, intensity: 0.42, layers: ['pad', 'strings', 'bass', 'arp', 'lead', 'vinyl'] },
+  { name: 'drop', bars: 16, intensity: 0.92, layers: ['pad', 'strings', 'drums', 'bass', 'arp', 'lead', 'clap'] },
+  { name: 'outro', bars: 8, intensity: 0.2, layers: ['pad', 'bass', 'vinyl'] },
 ];
 
-const PENTATONIC = [62, 65, 67, 69, 72, 74, 77, 79];
-const MOTIF = [69, 72, 74, 72, 69, 67, 65, 69, 72, 74, 77, 74, 72, 69, 67, 65];
+const TRACKS = [
+  { name: 'bass', program: 38 },
+  { name: 'pads', program: 89 },
+  { name: 'strings', program: 48 },
+  { name: 'arp', program: 11 },
+  { name: 'lead', program: 81 },
+  { name: 'drums', program: 0, drum: true },
+];
 
-export function renderGalactic({ seconds = 160, seed = 7, sampleRate = 44100 } = {}) {
-  const studio = new Studio({ sampleRate, seconds, seed });
-  const bars = Math.min(TOTAL_BARS, Math.ceil(seconds / BAR));
-
-  studio.vinyl(0, seconds, 0.0035);
-  studio.sweep(0, 9, 0.028);
-  studio.sweep(seconds - 8, 8, 0.022);
-
-  for (let bar = 0; bar < bars; bar += 1) {
-    const start = bar * BAR;
-    if (start >= seconds) break;
-    const chord = CHORDS[Math.floor(bar / 2) % CHORDS.length];
-    const next = CHORDS[Math.floor((bar + 2) / 2) % CHORDS.length];
-    const inIntro = bar < 8;
-    const inBreak = bar >= 32 && bar < 48;
-    const inDrop = bar >= 48 && bar < 64;
-    const inOutro = bar >= 64;
-
-    // Pad: every two bars, sustained across the chord change.
-    if (bar % 2 === 0) {
-      const duration = Math.min(BAR * 2 + 0.4, seconds - start);
-      studio.pad(start, duration, chord.notes.map(midiToFreq), inIntro ? 0.048 : 0.038);
-      if (!inIntro) studio.pad(start, duration, [next.notes[1], next.notes[2]].map(midiToFreq), 0.014);
-    }
-
-    if (inBreak || inDrop) {
-      studio.strings(start, BAR + 0.2, chord.notes.map(midiToFreq), inDrop ? 0.04 : 0.028);
-    }
-
-    // Drums.
-    if (!inBreak && !inOutro) {
-      studio.kick(start + BEAT * 0, 0.62);
-      studio.kick(start + BEAT * 2, 0.48);
-      if (!inIntro) {
-        studio.kick(start + BEAT * 2.75, 0.28);
-        studio.snare(start + BEAT * 1, 0.24, -0.08);
-        studio.snare(start + BEAT * 3, 0.24, 0.08);
-        for (let eighth = 0; eighth < 8; eighth += 1) {
-          studio.hat(start + eighth * BEAT * 0.5, eighth % 2 === 0 ? 0.028 : 0.018, eighth === 7);
-        }
-        if (inDrop && (bar % 4 === 0 || bar % 4 === 2)) studio.clap(start + BEAT * 1, 0.12);
-        if (inDrop && bar % 4 === 2) studio.clap(start + BEAT * 3, 0.1);
-      }
-    }
-
-    if (bar === 8 || bar === 32 || bar === 48 || bar === 64) studio.crash(start, 0.07);
-
-    // Bass.
-    if (!inIntro && !inOutro) {
-      const root = chord.root;
-      const pattern = inBreak
-        ? [
-            [0, 0.5, 0],
-            [2.5, 0.35, 0],
-          ]
-        : [
-            [0, 0.4, 0],
-            [0.75, 0.22, 0],
-            [1.5, 0.32, 12],
-            [2.25, 0.2, 0],
-            [2.75, 0.38, 7],
-            [3.5, 0.18, 12],
-          ];
-      for (const [offset, length, octave] of pattern) {
-        studio.bass(start + offset * BEAT, length * BEAT, midiToFreq(root + octave), inBreak ? 0.13 : 0.16);
-      }
-    }
-
-    // Arpeggio.
-    if (!inIntro && !inOutro) {
-      const tones = [...chord.notes, ...chord.color].map((midi) => midi + 12);
-      const steps = inBreak ? 8 : 16;
-      for (let step = 0; step < steps; step += 1) {
-        const idx = (step + bar) % tones.length;
-        const octave = step % 8 >= 6 ? 12 : 0;
-        studio.pluck(
-          start + (step * BAR) / steps,
-          inBreak ? 0.22 : 0.13,
-          midiToFreq(tones[idx] + octave),
-          inBreak ? 0.025 : 0.038,
-          step % 2 ? 0.28 : -0.28,
-        );
-      }
-    }
-
-    // Lead motif in the break and final drop.
-    if (inBreak || inDrop) {
-      const density = inBreak ? 4 : 2;
-      for (let step = 0; step < 16; step += density) {
-        const note = MOTIF[(step + bar * 2) % MOTIF.length];
-        const octave = inDrop && step > 10 ? 12 : 0;
-        studio.lead(
-          start + step * BEAT * 0.25,
-          BEAT * (inBreak ? 0.9 : 0.55),
-          midiToFreq(note + octave),
-          inBreak ? 0.075 : 0.055,
-        );
-      }
-      if (inBreak && bar % 4 === 0) {
-        studio.lead(start, BEAT * 6, midiToFreq(PENTATONIC[bar % PENTATONIC.length]), 0.045);
-      }
-    }
-
-    // Outro: a last low note and a soft high shimmer.
-    if (inOutro) {
-      studio.bass(start, BAR, midiToFreq(chord.root), 0.1);
-      if (bar % 4 === 0) studio.crash(start, 0.035);
-    }
-  }
-
-  return studio.finish();
+/**
+ * @param {number} index scale step, may be negative or beyond one octave
+ * @returns {number} MIDI note
+ */
+function deg(index) {
+  const n = STEPS.length;
+  const octave = Math.floor(index / n);
+  const step = ((index % n) + n) % n;
+  return KEY + STEPS[step] + 12 * octave;
 }
 
-export const GALACTIC_META = {
+/** Theme: an original rising-then-falling figure in D dorian. */
+const MOTIF = [7, 9, 11, 9, 7, 4, 7, 9, 11, 14, 12, 11, 9, 7, 4, 2];
+
+/** Sixteenth-note bass figure: [beat offset, length in beats, semitone offset]. */
+const BASS_PATTERN = [
+  [0, 0.4, 0],
+  [0.75, 0.22, 0],
+  [1.5, 0.32, 12],
+  [2.25, 0.2, 0],
+  [2.75, 0.38, 7],
+  [3.5, 0.18, 12],
+];
+const BASS_BREAK = [
+  [0, 0.5, 0],
+  [2.5, 0.35, 0],
+];
+
+/**
+ * @param {string} symbol @returns {number[]}
+ */
+function chordFor(symbol) {
+  return parseDegree(symbol, KEY, SCALE).notes;
+}
+
+/**
+ * @param {{ seconds?: number, seed?: number, sampleRate?: number, stems?: boolean, score?: import('../midi.js').Score | null }} [opts]
+ * @returns {Studio}
+ */
+export function render({ seconds = undefined, seed = 7, sampleRate = 44100, stems = false, score = null } = {}) {
+  const arrangement = new Arrangement({ bpm: BPM, beatsPerBar: BEATS_PER_BAR, sections: SECTIONS });
+  if (seconds != null) arrangement.fit(seconds);
+  const total = arrangement.seconds;
+
+  const studio = new Studio({ sampleRate, seconds: total, seed, stems, score });
+  const rng = mulberry32(seed);
+  const jitter = (amount = 0.012) => (rng() * 2 - 1) * amount;
+  const vel = (base) => Math.max(0.08, Math.min(1, base * (0.84 + rng() * 0.32)));
+  const chance = (p) => rng() < p;
+
+  let prevPad = null;
+  let prevStrings = null;
+
+  studio.vinyl(0, total, 0.0035);
+  studio.sweep(0, 9, 0.028);
+  if (total > 12) studio.sweep(total - 8, 8, 0.022);
+
+  arrangement.forEachBar((ctx) => {
+    const { bar, start, section, barInSection, barsInSection, intensity, at } = ctx;
+    const layers = section.layers;
+    const symbol = PROGRESSION[Math.floor(bar / BARS_PER_CHORD) % PROGRESSION.length];
+    const chord = chordFor(symbol);
+    const isChordChange = bar % BARS_PER_CHORD === 0;
+    const isIntro = section.name === 'intro';
+    const isBreak = section.name === 'break';
+    const isDrop = section.name === 'drop';
+    const isOutro = section.name === 'outro';
+    const isSectionStart = barInSection === 0;
+    const holdBars = Math.min(BARS_PER_CHORD, barsInSection - barInSection);
+    const holdSeconds = holdBars * arrangement.bar;
+
+    // -- Pads ----------------------------------------------------------------
+    if (layers.includes('pad') && isChordChange) {
+      const voicing = voiceLead(prevPad, chord, { min: 50, max: 74 });
+      prevPad = voicing;
+      studio.pad(start, Math.min(holdSeconds + 0.4, total - start), voicing.map((n) => midiToFreq(n)), {
+        gain: isIntro ? 0.05 : 0.04,
+        reverb: 0.5,
+        delay: 0.1,
+        bus: 'pads',
+        track: 'pads',
+        midis: voicing,
+      });
+      if (!isIntro) {
+        const color = chord.slice(1, 3).map((n) => n + 12);
+        studio.pad(start, Math.min(holdSeconds + 0.2, total - start), color.map((n) => midiToFreq(n)), {
+          gain: 0.014,
+          reverb: 0.55,
+          delay: 0.12,
+          bus: 'pads',
+        });
+      }
+    }
+
+    // -- Strings -------------------------------------------------------------
+    if (layers.includes('strings') && isChordChange) {
+      const voicing = voiceLead(prevStrings, chord.map((n) => n + 12), { min: 55, max: 79 });
+      prevStrings = voicing;
+      studio.strings(start, holdSeconds * 0.98, voicing, {
+        gain: isDrop ? 0.042 : 0.03,
+        attack: isDrop ? 0.4 : 0.7,
+        release: 1.2,
+        cutoff: 2400,
+        reverb: 0.5,
+        bus: 'strings',
+        track: 'strings',
+        velocity: vel(0.6),
+      });
+    }
+
+    // -- Drums ---------------------------------------------------------------
+    if (layers.includes('drums')) {
+      const fourOnFloor = isDrop;
+      for (let beat = 0; beat < 4; beat += 1) {
+        if (beat % 2 === 0 || fourOnFloor) {
+          studio.kick(at(beat + jitter(0.004)), {
+            gain: beat === 0 ? 0.62 : 0.46,
+            bus: 'drums',
+            track: 'drums',
+          });
+        }
+      }
+      if (!isIntro) {
+        studio.kick(at(2.75 + jitter(0.004)), { gain: 0.26, bus: 'drums', track: 'drums' });
+      }
+      studio.snare(at(1 + jitter(0.006)), { gain: 0.24, pan: -0.08, bus: 'drums', track: 'drums', velocity: vel(0.7) });
+      studio.snare(at(3 + jitter(0.006)), { gain: 0.24, pan: 0.08, bus: 'drums', track: 'drums', velocity: vel(0.7) });
+      for (let eighth = 0; eighth < 8; eighth += 1) {
+        studio.hat(at(eighth * 0.5 + jitter(0.005)), {
+          gain: (eighth % 2 === 0 ? 0.03 : 0.018) * (0.85 + rng() * 0.3),
+          open: eighth === 7 && chance(0.3),
+          pan: eighth % 2 === 0 ? 0.28 : 0.36,
+          bus: 'drums',
+          track: 'drums',
+        });
+      }
+      if (layers.includes('clap') && (barInSection % 4 === 0 || barInSection % 4 === 2)) {
+        studio.clap(at(1), { gain: 0.12, bus: 'drums', track: 'drums' });
+      }
+      if (isDrop && barInSection % 4 === 3) {
+        for (let s = 0; s < 4; s += 1) {
+          studio.snare(at(3 + s * 0.25 + jitter(0.004)), { gain: 0.09 + s * 0.04, pan: 0.12, bus: 'drums', track: 'drums' });
+        }
+      }
+    }
+
+    if (isSectionStart && (isBreak || isDrop)) {
+      studio.crash(start, { gain: 0.07, bus: 'drums', track: 'drums' });
+    }
+
+    // -- Bass ----------------------------------------------------------------
+    if (layers.includes('bass')) {
+      const pattern = isBreak ? BASS_BREAK : BASS_PATTERN;
+      for (const [offset, length, octave] of pattern) {
+        studio.bass(
+          at(offset + jitter(0.008)),
+          length * arrangement.beat,
+          midiToFreq(chord[0] + octave),
+          {
+            gain: (isBreak ? 0.13 : 0.17) * (0.4 + intensity),
+            bus: 'bass',
+            track: 'bass',
+            midi: chord[0] + octave,
+          },
+        );
+      }
+    }
+
+    // -- Arpeggio ------------------------------------------------------------
+    if (layers.includes('arp')) {
+      const tones = [...chord, ...chord.map((n) => n + 12)];
+      const steps = isBreak ? 8 : 16;
+      const rotate = chance(0.5) ? bar : 0;
+      for (let step = 0; step < steps; step += 1) {
+        const idx = (step + rotate) % tones.length;
+        const lift = step % 8 >= 6 ? 12 : 0;
+        studio.pluck(
+          at((step * 4) / steps + jitter(0.006)),
+          isBreak ? 0.22 : 0.13,
+          midiToFreq(tones[idx] + lift),
+          {
+            gain: (isBreak ? 0.026 : 0.038) * (0.6 + intensity),
+            pan: step % 2 ? 0.28 : -0.28,
+            bus: 'arp',
+            track: 'arp',
+            midi: tones[idx] + lift,
+            velocity: vel(step % 4 === 0 ? 0.8 : 0.55),
+          },
+        );
+      }
+    }
+
+    // -- Lead ----------------------------------------------------------------
+    if (layers.includes('lead')) {
+      const density = isBreak ? 4 : 2;
+      for (let step = 0; step < 16; step += density) {
+        const note = deg(MOTIF[(step + bar * 2) % MOTIF.length]);
+        const octave = isDrop && step > 10 ? 12 : 0;
+        studio.lead(
+          at(step * 0.25 + jitter(0.01)),
+          arrangement.beat * (isBreak ? 0.9 : 0.55),
+          midiToFreq(note + octave),
+          {
+            gain: (isBreak ? 0.075 : 0.058) * (0.6 + intensity),
+            bus: 'lead',
+            track: 'lead',
+            midi: note + octave,
+            velocity: vel(0.75),
+          },
+        );
+      }
+      if (isBreak && barInSection % 4 === 0) {
+        const pedal = deg([4, 7, 9, 11][bar % 4]);
+        studio.lead(start, arrangement.beat * 6, midiToFreq(pedal), {
+          gain: 0.045,
+          bus: 'lead',
+          track: 'lead',
+          midi: pedal,
+          velocity: vel(0.6),
+        });
+      }
+    }
+
+    // -- Outro ---------------------------------------------------------------
+    if (isOutro) {
+      studio.bass(start, arrangement.bar, midiToFreq(chord[0]), {
+        gain: 0.1,
+        bus: 'bass',
+        track: 'bass',
+        midi: chord[0],
+      });
+      if (barInSection % 4 === 0) studio.crash(start, { gain: 0.035, bus: 'drums', track: 'drums' });
+    }
+  });
+
+  studio.finish({
+    targetLufs: -14,
+    fadeIn: 0.03,
+    fadeOut: Math.min(4, total * 0.06),
+    reverbRoom: 0.8,
+    reverbDamp: 0.34,
+    delayTimeL: (60 / BPM) * 0.75,
+    delayTimeR: (60 / BPM) * 1.5,
+    delayFeedback: 0.4,
+    delayWet: 0.45,
+  });
+  return studio;
+}
+
+export const meta = {
+  slug: 'galactic',
   name: 'Orbital Suite',
   bpm: BPM,
   key: 'D minor / dorian',
-  description: 'Slow cosmic disco: warm analog pads, syncopated bass, glass arpeggios and a wordless lead. Original recording, no samples.',
+  bars: NATURAL_BARS,
+  beatsPerBar: BEATS_PER_BAR,
+  description: 'Slow cosmic disco: warm analog pads, syncopated bass, glass arpeggios and a wordless lead.',
+  tracks: TRACKS,
+  /** @returns {number} */
+  naturalSeconds() {
+    return NATURAL_BARS * BEATS_PER_BAR * (60 / BPM);
+  },
+  /** @param {{ seconds?: number }} opts @returns {string} */
+  form(opts = {}) {
+    const arrangement = new Arrangement({ bpm: BPM, beatsPerBar: BEATS_PER_BAR, sections: SECTIONS });
+    if (opts.seconds != null) arrangement.fit(opts.seconds);
+    return describeForm(arrangement);
+  },
 };
