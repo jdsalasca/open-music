@@ -5,7 +5,7 @@
  * Exit codes: 0 success, 1 runtime failure, 2 usage error.
  */
 
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -175,7 +175,10 @@ async function main() {
   const quiet = flags.has('quiet') || asJson;
 
   if (flags.has('version')) {
-    console.log('open-music 0.2.0');
+    // Read the manifest rather than repeating the version here, so the two can
+    // never drift apart.
+    const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+    console.log(`open-music ${version}`);
     return 0;
   }
   if (flags.has('help') || command === 'help') {

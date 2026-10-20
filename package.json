@@ -1,6 +1,6 @@
 {
   "name": "open-music",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Deterministic procedural music engine: turns a seed into an original track with no samples, no APIs and no third-party rights.",
   "type": "module",
   "bin": {
@@ -25,6 +25,7 @@
     "generate": "node src/cli.js generate --preset galactic --out galactic.mp3",
     "generate:dark-fantasy": "node src/cli.js generate --preset dark-fantasy --out dark-fantasy-suite.mp3",
     "generate:bound-soul": "node src/cli.js generate --preset bound-soul --out bound-soul.mp3",
+    "generate:symphony": "node src/cli.js generate --preset symphony --out symphony-c-minor.mp3",
     "smoke": "node src/cli.js generate --preset dark-fantasy --duration 20 --out smoke.mp3"
   },
   "engines": {
@@ -37,6 +38,8 @@
     "synth",
     "synthesis",
     "orchestral",
+    "symphony",
+    "classical",
     "cinematic",
     "score",
     "soul",

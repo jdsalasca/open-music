@@ -6,6 +6,7 @@ A tiny, deterministic music engine. It turns a seed into an original track — *
 node src/cli.js presets
 node src/cli.js generate --preset galactic --out orbital-suite.mp3
 node src/cli.js generate --preset dark-fantasy --out dark-fantasy-suite.mp3 --midi suite.mid
+node src/cli.js generate --preset symphony --out symphony-c-minor.mp3 --midi symphony.mid
 ```
 
 Zero dependencies. Only Node and (optionally) `ffmpeg` for MP3.
@@ -17,6 +18,7 @@ Zero dependencies. Only Node and (optionally) `ffmpeg` for MP3.
 | `galactic` | Orbital Suite | Space disco in D dorian, 108 BPM | 160 s |
 | `dark-fantasy` | Dark Fantasy Suite | Cinematic orchestral soul in F minor, 72 BPM | 267 s |
 | `bound-soul` | Bound Soul | Chopped soul in B-flat major, 94 BPM | 204 s |
+| `symphony` | Symphony in C minor | Sonata form for full orchestra, 60 → 132 BPM | 355 s |
 
 ### `galactic` — Orbital Suite
 
@@ -46,6 +48,27 @@ Inspired by the production aesthetic of chopped-soul, gospel-tinged, sample-base
 ```bash
 node src/cli.js form --preset bound-soul
 # Bound Soul: intro:8 verse:16 hook:16 break:8 hook2:16 outro:16
+```
+
+### `symphony` — Symphony in C minor
+
+A single symphonic movement in sonata form, in the Viennese Classical language. Five string sections, double woodwind, three brass and timpani — fourteen parts, all synthesised.
+
+| Section | What happens |
+| --- | --- |
+| **Grave** | C minor, 60 BPM. Tremolo violins over a tonic pedal, a horn call, a chromatic rise in the cellos, then a dominant pedal that swells and stops. |
+| **Exposition** | 132 BPM. First theme (a rising arpeggio through the leading tone) in C minor; a transition that sequences it up a fourth; a lyrical second theme in E flat major for oboe and flute; a full-orchestra codetta. |
+| **Development** | The motif in sequence through A flat, F minor and G minor, then a stretto where the violins and winds imitate each other while the brass joins, climaxing on a diminished seventh. |
+| **Recapitulation** | Both themes return, the second one now in the tonic — the point of the form. |
+| **Coda** | A final build, the cadence hammered home, and a Picardy third: the minor turns major for the last chord. |
+
+The sections run at **different tempi** (60 for the grave, 132 for the allegro), which the arrangement supports per section, so the movement is 5:55 at its natural length.
+
+An original composition in the Classical style: the thematic material is a deliberately simple motivic cell developed by transposition, inversion and sequence — the technique of the period, not a quotation of any existing work. No samples and no material from any recording.
+
+```bash
+node src/cli.js form --preset symphony
+# Symphony in C minor: grave:16 exposition:48 development:40 recapitulation:48 coda:24
 ```
 
 ## CLI
@@ -86,7 +109,8 @@ src/
 └── presets/
     ├── galactic.js
     ├── dark-fantasy.js
-    └── bound-soul.js
+    ├── bound-soul.js
+    └── symphony.js
 ```
 
 Signal flow:
@@ -103,7 +127,10 @@ Notable choices:
 
 - **Band-limited oscillators.** Saw and square use PolyBLEP, so high arpeggios do not fold aliases back into the audible range.
 - **Resonant filter with its own envelope.** Voices run through a TPT state-variable filter whose cutoff is modulated per note, which is where most of the character comes from.
+- **Additive winds.** The flute, oboe, clarinet and bassoon are harmonic series summed through one phase accumulator, so the vibrato moves every partial together instead of beating between them. The clarinet gets odd partials only, because it is a closed pipe and that is why it sounds hollow. A breath-noise layer and a chiff give the flute its air.
 - **FM electric piano.** The Rhodes is a two-operator FM voice with a decaying modulation index — the bell-like tine attack is the modulation decaying out, not a sample.
+- **Brass by family.** Trumpet, trombone and tuba share one filter-swept unison-saw core and differ in bite (how fast the filter opens) and brightness, which is what actually separates them.
+- **Per-section tempo.** A section may carry its own `bpm`, so a piece can change speed between movements instead of faking it by stretching note lengths. Timing, `at()` and the fitted duration all follow.
 - **Single static loudness gain.** The mix is measured with ITU-R BS.1770 gated loudness and scaled *once* to −14 LUFS, then caught by a look-ahead limiter. No dynamic normalisation, so the arrangement keeps its internal dynamics and ffmpeg never resamples the file.
 - **True-peak limiting.** The limiter evaluates the waveform *between* samples, not just the sample values, and masters to −1.4 dBFS so the reconstructed signal stays under 0 dBFS. A sample-only limiter lets a bright mix overshoot by more than a decibel, which clips on playback and gets worse through a lossy encoder.
 - **Tempo-synced delay.** Delay times are derived from the preset BPM, so echoes sit on the grid.
@@ -170,7 +197,7 @@ npm test          # node --test tests/
 npm run smoke     # 20 second render of the orchestral preset
 ```
 
-The suite covers the DSP primitives, the form maths, the MIDI writer, both presets end to end, and the CLI contract (including that a mistyped flag is an error rather than a silent 160-second render).
+The suite covers the DSP primitives, the form maths, the MIDI writer, every preset end to end, and the CLI contract (including that a mistyped flag is an error rather than a silent 160-second render).
 
 ## Requirements
 

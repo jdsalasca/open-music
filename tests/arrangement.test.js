@@ -97,6 +97,59 @@ test('fit rejects nonsense durations', () => {
   assert.throws(() => arrangement.fit(Number.NaN), /positive duration/);
 });
 
+test('sections can run at their own tempo', () => {
+  const arrangement = new Arrangement({
+    bpm: 60,
+    beatsPerBar: 4,
+    sections: [
+      { name: 'grave', bars: 4, bpm: 60 },
+      { name: 'allegro', bars: 8, bpm: 120 },
+    ],
+  });
+  // grave: 4 bars of 4 s = 16 s; allegro: 8 bars of 2 s = 16 s.
+  assert.ok(Math.abs(arrangement.seconds - 32) < 1e-9, `total ${arrangement.seconds}`);
+  const layout = arrangement.layout();
+  assert.ok(Math.abs(layout[0].barSeconds - 4) < 1e-9);
+  assert.ok(Math.abs(layout[1].barSeconds - 2) < 1e-9);
+  assert.ok(Math.abs(layout[1].start - 16) < 1e-9, `allegro starts at ${layout[1].start}`);
+  assert.ok(Math.abs(layout[1].end - 32) < 1e-9);
+
+  const starts = [];
+  const bars = [];
+  arrangement.forEachBar((ctx) => {
+    starts.push(ctx.start);
+    bars.push(ctx.barSeconds);
+  });
+  assert.equal(starts[0], 0);
+  assert.ok(Math.abs(starts[4] - 16) < 1e-9, 'the first allegro bar must start at 16 s');
+  assert.ok(Math.abs(starts[5] - 18) < 1e-9);
+  assert.ok(Math.abs(starts[starts.length - 1] - 30) < 1e-9);
+  assert.equal(bars[0], 4);
+  assert.equal(bars[4], 2);
+
+  // A section without its own tempo inherits the arrangement's.
+  const inherited = new Arrangement({ bpm: 60, beatsPerBar: 4, sections: [{ name: 'a', bars: 2 }] });
+  assert.ok(Math.abs(inherited.layout()[0].barSeconds - 4) < 1e-9);
+});
+
+test('fit scales a form that mixes tempi', () => {
+  const arrangement = new Arrangement({
+    bpm: 60,
+    beatsPerBar: 4,
+    sections: [
+      { name: 'slow', bars: 8, bpm: 48 },
+      { name: 'fast', bars: 24, bpm: 132 },
+    ],
+  });
+  const natural = arrangement.seconds;
+  // 8 bars at 48 BPM = 40 s, 24 bars at 132 BPM = 43.6 s.
+  assert.ok(Math.abs(natural - 83.636) < 0.1, `unexpected natural length ${natural}`);
+  arrangement.fit(40);
+  assert.ok(Math.abs(arrangement.seconds - 40) < 3, `fitted to ${arrangement.seconds}`);
+  assert.ok(arrangement.fitted);
+  assert.equal(arrangement.layout().length, 2, 'both sections must survive');
+});
+
 test('sectionAt resolves boundaries to the later section', () => {
   const arrangement = new Arrangement({ bpm: 120, beatsPerBar: 4, sections: SECTIONS });
   assert.equal(arrangement.sectionAt(0).name, 'intro');

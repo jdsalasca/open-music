@@ -73,6 +73,52 @@ test('the tremolo modulates the electric piano amplitude', () => {
   assert.ok(rises > 5, `expected the envelope to rise and fall, got ${rises} rises over ${envelope.length} windows`);
 });
 
+test('a subtractive voice actually produces sound at every attack time', () => {
+  // Regression: the envelope loop used to break on the first sample because an
+  // attack ramp starts at exactly zero, which silenced every tone() voice.
+  for (const attack of [0, 0.005, 0.05, 0.4]) {
+    const studio = new Studio({ sampleRate: SR, seconds: 2, seed: 1 });
+    studio.tone({ start: 0.05, duration: 0.8, freq: 261.63, wave: 'saw', gain: 0.4, attack });
+    studio.finish({ targetLufs: null });
+    let peak = 0;
+    for (let i = 0; i < studio.master.left.length; i += 1) peak = Math.max(peak, Math.abs(studio.master.left[i]));
+    assert.ok(peak > 0.01, `tone() with attack ${attack} was silent (peak ${peak})`);
+  }
+});
+
+test('every melodic voice is audible on its own', () => {
+  /** @type {Array<[string, (s: Studio) => void]>} */
+  const voices = [
+    ['bass', (s) => s.bass(0.05, 0.8, 110, { midi: 45 })],
+    ['subBass', (s) => s.subBass(0.05, 0.8, 36)],
+    ['pluck', (s) => s.pluck(0.05, 0.4, 440, { midi: 69 })],
+    ['pad', (s) => s.pad(0.05, 0.8, [220, 277], { midis: [57, 61] })],
+    ['choir', (s) => s.choir(0.05, 0.8, [60, 64])],
+    ['strings', (s) => s.strings(0.05, 0.8, [60, 64, 67])],
+    ['brass', (s) => s.brass(0.05, 0.6, [60, 64])],
+    ['horn', (s) => s.horn(0.05, 0.8, 60)],
+    ['lead', (s) => s.lead(0.05, 0.8, 440, { midi: 69 })],
+    ['harp', (s) => s.harp(0.05, 0.6, 69)],
+    ['flute', (s) => s.flute(0.05, 0.8, 72)],
+    ['oboe', (s) => s.oboe(0.05, 0.8, 72)],
+    ['clarinet', (s) => s.clarinet(0.05, 0.8, 60)],
+    ['bassoon', (s) => s.bassoon(0.05, 0.8, 48)],
+    ['trumpet', (s) => s.trumpet(0.05, 0.8, 60)],
+    ['trombone', (s) => s.trombone(0.05, 0.8, 55)],
+    ['tuba', (s) => s.tuba(0.05, 0.8, 40)],
+    ['tremoloStrings', (s) => s.tremoloStrings(0.05, 0.8, [60, 64])],
+    ['pizzicato', (s) => s.pizzicato(0.05, 0.3, [60, 64, 67])],
+  ];
+  for (const [name, play] of voices) {
+    const studio = new Studio({ sampleRate: SR, seconds: 2, seed: 2 });
+    play(studio);
+    studio.finish({ targetLufs: null });
+    let peak = 0;
+    for (let i = 0; i < studio.master.left.length; i += 1) peak = Math.max(peak, Math.abs(studio.master.left[i]));
+    assert.ok(peak > 0.002, `${name} produced no audio (peak ${peak})`);
+  }
+});
+
 test('every voice survives a full render without producing NaN', () => {
   const studio = new Studio({ sampleRate: SR, seconds: 4, seed: 11 });
   studio.tone({ start: 0, duration: 0.5, freq: 220, wave: 'saw', gain: 0.05, cutoff: 2000 });

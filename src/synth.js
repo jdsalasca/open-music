@@ -290,7 +290,11 @@ export class Studio {
         else if (i < aS + dS) env = 1 - (1 - sd) * ((i - aS) / dS);
         else if (i < durS) env = sd;
         else env = sd * Math.max(0, 1 - (i - durS) / rS);
-        if (env <= 0) break;
+        // The first sample of an attack ramp is exactly zero, so a plain
+        // `env <= 0` test would end the note before it starts. Only a
+        // genuinely finished envelope ends the loop.
+        if (env <= 0 && i > aS) break;
+        if (env < 0) env = 0;
 
         let p = phase;
         if (vibrato) {
@@ -718,6 +722,352 @@ export class Studio {
         track,
       });
     });
+  }
+
+  /**
+   * Additive core shared by the woodwinds: a harmonic series driven by one phase
+   * accumulator, so the vibrato moves every partial together instead of beating
+   * between them, plus a breath-noise layer and a chiff on the attack.
+   *
+   * @private
+   * @param {number} start @param {number} duration @param {number} midi
+   * @param {{ gain?: number, pan?: number, partials?: number[], attack?: number,
+   *   release?: number, air?: number, vibrato?: number, vibratoRate?: number,
+   *   vibratoDelay?: number, detune?: number, reverb?: number, delay?: number,
+   *   bus?: string, track?: string | null, velocity?: number }} [opts]
+   */
+  _additive(start, duration, midi, {
+    gain = 0.05,
+    pan = 0,
+    partials = [1],
+    attack = 0.04,
+    release = 0.2,
+    air = 0.003,
+    vibrato = 0.004,
+    vibratoRate = 5,
+    vibratoDelay = 0.25,
+    detune = 0,
+    reverb = 0.38,
+    delay = 0.05,
+    bus = null,
+    track = null,
+    velocity = 1,
+  } = {}) {
+    const sr = this.sr;
+    const begin = Math.max(0, Math.floor(start * sr));
+    const end = Math.min(this.length, begin + Math.floor((duration + release) * sr));
+    if (end <= begin || duration <= 0) return;
+    const b = this.busFor(bus, track);
+    const pg = this.panGains(pan);
+    const freq = midiToFreq(midi) * (1 + detune);
+    const out = gain * velocity;
+    const releaseStart = Math.max(0.02, duration);
+    const attackSamples = Math.max(1, attack * sr);
+    let phase = 0;
+    this.stats.notes += 1;
+    this.record({ track, start, duration, midi, velocity });
+    for (let i = 0; i < end - begin; i += 1) {
+      const t = i / sr;
+      const vibEnv = vibratoDelay <= 0 ? 1 : Math.min(1, Math.max(0, (t - vibratoDelay) / 0.4));
+      const bend = 1 + vibrato * vibEnv * Math.sin(TAU * vibratoRate * t);
+      phase += (TAU * freq * bend) / sr;
+      let acc = 0;
+      for (let p = 0; p < partials.length; p += 1) acc += Math.sin(phase * (p + 1)) * partials[p];
+      const env = Math.min(1, i / attackSamples);
+      const tail = t > releaseStart ? Math.max(0, 1 - (t - releaseStart) / release) : 1;
+      const breath = air > 0 ? this.noise() * air * Math.min(1, t * 60) : 0;
+      const s = (acc + breath) * env * tail * out;
+      const k = begin + i;
+      b.left[k] += s * pg.l;
+      b.right[k] += s * pg.r;
+      if (reverb > 0) {
+        this.revL[k] += s * pg.l * reverb;
+        this.revR[k] += s * pg.r * reverb;
+      }
+      if (delay > 0) {
+        this.delL[k] += s * pg.l * delay;
+        this.delR[k] += s * pg.r * delay;
+      }
+    }
+  }
+
+  /**
+   * Flute: nearly a sine, with breath and a soft chiff. Almost no upper
+   * partials — that absence is what makes it read as a flute.
+   * @param {number} start @param {number} duration @param {number} midi
+   * @param {{ gain?: number, pan?: number, reverb?: number, delay?: number, bus?: string, track?: string | null, velocity?: number }} [opts]
+   */
+  flute(start, duration, midi, { gain = 0.05, pan = 0, reverb = 0.45, delay = 0.07, bus = null, track = null, velocity = 1 } = {}) {
+    this._additive(start, duration, midi, {
+      gain, pan, reverb, delay, bus, track, velocity,
+      partials: [1, 0.13, 0.045, 0.018],
+      attack: 0.055,
+      release: 0.24,
+      air: 0.011,
+      vibrato: 0.0055,
+      vibratoRate: 5.2,
+      vibratoDelay: 0.3,
+    });
+  }
+
+  /**
+   * Oboe: a strong second and third partial make the nasal, reedy colour.
+   * @param {number} start @param {number} duration @param {number} midi
+   * @param {{ gain?: number, pan?: number, reverb?: number, delay?: number, bus?: string, track?: string | null, velocity?: number }} [opts]
+   */
+  oboe(start, duration, midi, { gain = 0.042, pan = 0, reverb = 0.4, delay = 0.06, bus = null, track = null, velocity = 1 } = {}) {
+    this._additive(start, duration, midi, {
+      gain, pan, reverb, delay, bus, track, velocity,
+      partials: [0.8, 1, 0.66, 0.4, 0.22, 0.11, 0.05],
+      attack: 0.022,
+      release: 0.16,
+      air: 0.0022,
+      vibrato: 0.0045,
+      vibratoRate: 5.6,
+      vibratoDelay: 0.22,
+    });
+  }
+
+  /**
+   * Clarinet: odd partials only. A clarinet is a closed pipe, so the even
+   * harmonics are essentially absent — that is the hollow tone.
+   * @param {number} start @param {number} duration @param {number} midi
+   * @param {{ gain?: number, pan?: number, reverb?: number, delay?: number, bus?: string, track?: string | null, velocity?: number }} [opts]
+   */
+  clarinet(start, duration, midi, { gain = 0.048, pan = 0, reverb = 0.4, delay = 0.06, bus = null, track = null, velocity = 1 } = {}) {
+    this._additive(start, duration, midi, {
+      gain, pan, reverb, delay, bus, track, velocity,
+      partials: [1, 0, 0.42, 0, 0.2, 0, 0.09, 0, 0.04],
+      attack: 0.03,
+      release: 0.18,
+      air: 0.0035,
+      vibrato: 0.0035,
+      vibratoRate: 4.8,
+      vibratoDelay: 0.35,
+    });
+  }
+
+  /**
+   * Bassoon: dark and reedy, rich in low partials.
+   * @param {number} start @param {number} duration @param {number} midi
+   * @param {{ gain?: number, pan?: number, reverb?: number, delay?: number, bus?: string, track?: string | null, velocity?: number }} [opts]
+   */
+  bassoon(start, duration, midi, { gain = 0.05, pan = 0, reverb = 0.38, delay = 0.05, bus = null, track = null, velocity = 1 } = {}) {
+    this._additive(start, duration, midi, {
+      gain, pan, reverb, delay, bus, track, velocity,
+      partials: [1, 0.62, 0.44, 0.28, 0.17, 0.1, 0.06, 0.03],
+      attack: 0.035,
+      release: 0.2,
+      air: 0.004,
+      vibrato: 0.003,
+      vibratoRate: 4.6,
+      vibratoDelay: 0.4,
+    });
+  }
+
+  /**
+   * Shared brass core. A real brass note opens its filter in the first tens of
+   * milliseconds and then settles; the `filterEnv`/`filterDecay` pair is that.
+   * @private
+   */
+  _brassVoice(start, duration, midi, {
+    gain = 0.06,
+    pan = 0,
+    attack = 0.04,
+    release = 0.26,
+    cutoff = 1200,
+    res = 1.3,
+    filterEnv = 2,
+    filterDecay = 0.3,
+    unison = 2,
+    spread = 0.05,
+    vibrato = 0.025,
+    reverb = 0.36,
+    delay = 0.06,
+    bus = null,
+    track = null,
+    velocity = 1,
+  } = {}) {
+    this.tone({
+      start,
+      duration,
+      freq: midiToFreq(midi),
+      wave: 'saw',
+      gain,
+      attack,
+      decay: 0.2,
+      sustain: 0.8,
+      release,
+      pan,
+      cutoff,
+      res,
+      filterEnv,
+      filterDecay,
+      unison,
+      spread,
+      unisonPan: 0.24,
+      vibrato,
+      vibratoRate: 5.1,
+      vibratoDelay: 0.3,
+      reverb,
+      delay,
+      bus,
+      velocity,
+      midi,
+      track,
+    });
+  }
+
+  /**
+   * Trumpet: the brightest brass, fast bite.
+   * @param {number} start @param {number} duration @param {number} midi
+   * @param {{ gain?: number, pan?: number, attack?: number, reverb?: number, bus?: string, track?: string | null, velocity?: number }} [opts]
+   */
+  trumpet(start, duration, midi, { gain = 0.062, pan = 0, attack = 0.025, reverb = 0.34, bus = null, track = null, velocity = 1 } = {}) {
+    this._brassVoice(start, duration, midi, {
+      gain, pan, attack, reverb, bus, track, velocity,
+      cutoff: 2100, res: 1.7, filterEnv: 2.8, filterDecay: 0.22, unison: 2, spread: 0.045,
+    });
+  }
+
+  /**
+   * Trombone: broad and darker than the trumpet, slower bite.
+   * @param {number} start @param {number} duration @param {number} midi
+   * @param {{ gain?: number, pan?: number, attack?: number, reverb?: number, bus?: string, track?: string | null, velocity?: number }} [opts]
+   */
+  trombone(start, duration, midi, { gain = 0.07, pan = 0, attack = 0.05, reverb = 0.38, bus = null, track = null, velocity = 1 } = {}) {
+    this._brassVoice(start, duration, midi, {
+      gain, pan, attack, reverb, bus, track, velocity,
+      cutoff: 1350, res: 1.25, filterEnv: 2.1, filterDecay: 0.34, unison: 2, spread: 0.06,
+    });
+  }
+
+  /**
+   * Tuba: very dark, heavy, little bite.
+   * @param {number} start @param {number} duration @param {number} midi
+   * @param {{ gain?: number, pan?: number, attack?: number, reverb?: number, bus?: string, track?: string | null, velocity?: number }} [opts]
+   */
+  tuba(start, duration, midi, { gain = 0.085, pan = 0, attack = 0.06, reverb = 0.34, bus = null, track = null, velocity = 1 } = {}) {
+    this._brassVoice(start, duration, midi, {
+      gain, pan, attack, reverb, bus, track, velocity,
+      cutoff: 620, res: 0.95, filterEnv: 1.3, filterDecay: 0.4, unison: 2, spread: 0.05,
+      vibrato: 0.012,
+    });
+  }
+
+  /**
+   * Bowed tremolo: the section re-strokes rapidly, so this schedules very short
+   * notes instead of one long one. Amplitude wobble and bow weight vary per
+   * stroke, which is what stops it sounding like a gate effect.
+   *
+   * @param {number} start @param {number} duration @param {number | number[]} midis
+   * @param {{ gain?: number, pan?: number, rate?: number, cutoff?: number, reverb?: number, bus?: string, track?: string | null, velocity?: number }} [opts]
+   */
+  tremoloStrings(start, duration, midis, {
+    gain = 0.045,
+    pan = 0,
+    rate = 12,
+    cutoff = 2400,
+    reverb = 0.55,
+    bus = null,
+    track = null,
+    velocity = 1,
+  } = {}) {
+    const list = Array.isArray(midis) ? midis : [midis];
+    const n = Math.max(1, list.length);
+    const step = 1 / Math.max(4, rate);
+    const strokes = Math.max(1, Math.round(duration / step));
+    for (let k = 0; k < strokes; k += 1) {
+      const offset = k * step;
+      const length = Math.min(step * 0.85, duration - offset);
+      if (length <= 0) break;
+      list.forEach((midi, index) => {
+        const spread = n === 1 ? 0 : (index / (n - 1) - 0.5) * 1.15;
+        this.tone({
+          start: start + offset,
+          duration: length,
+          freq: midiToFreq(midi),
+          wave: 'saw',
+          gain: (gain / Math.sqrt(n)) * (0.72 + this.rng() * 0.5),
+          attack: 0.004,
+          decay: 0.02,
+          sustain: 0.88,
+          release: 0.045,
+          pan: pan + spread,
+          cutoff,
+          res: 0.85,
+          filterEnv: 0.28,
+          unison: 2,
+          spread: 0.07,
+          unisonPan: 0.3,
+          reverb,
+          delay: 0.04,
+          bus,
+          velocity,
+          midi,
+          track,
+        });
+      });
+    }
+  }
+
+  /**
+   * Pizzicato: a plucked string. Very short, no sustain.
+   * @param {number} start @param {number} duration @param {number | number[]} midis
+   * @param {{ gain?: number, pan?: number, reverb?: number, bus?: string, track?: string | null, velocity?: number }} [opts]
+   */
+  pizzicato(start, duration, midis, { gain = 0.07, pan = 0, reverb = 0.3, bus = null, track = null, velocity = 1 } = {}) {
+    const list = Array.isArray(midis) ? midis : [midis];
+    const n = Math.max(1, list.length);
+    list.forEach((midi, index) => {
+      const spread = n === 1 ? 0 : (index / (n - 1) - 0.5) * 0.9;
+      this.tone({
+        start,
+        duration: Math.min(Math.max(duration, 0.05), 0.16),
+        freq: midiToFreq(midi),
+        wave: 'triangle',
+        gain: gain / Math.sqrt(n),
+        attack: 0.002,
+        decay: 0.11,
+        sustain: 0.06,
+        release: 0.13,
+        pan: pan + spread,
+        cutoff: 3200,
+        res: 1.15,
+        filterEnv: 1.3,
+        filterDecay: 0.07,
+        unison: 2,
+        spread: 0.03,
+        reverb,
+        delay: 0.03,
+        bus,
+        velocity,
+        midi,
+        track,
+      });
+    });
+  }
+
+  /**
+   * Timpani roll: repeated strokes that can crescendo.
+   * @param {number} start @param {number} duration @param {number} midi
+   * @param {{ gain?: number, rate?: number, crescendo?: number, reverb?: number, bus?: string, track?: string | null }} [opts]
+   */
+  timpaniRoll(start, duration, midi, { gain = 0.3, rate = 11, crescendo = 0.7, reverb = 0.45, bus = null, track = null } = {}) {
+    const step = 1 / Math.max(4, rate);
+    const strokes = Math.max(1, Math.round(duration / step));
+    for (let k = 0; k < strokes; k += 1) {
+      const p = strokes <= 1 ? 0 : k / (strokes - 1);
+      const shape = 0.55 + 0.45 * (1 + crescendo * (p - 0.5) * 2) * 0.5;
+      const weight = (0.75 + this.rng() * 0.35) * shape;
+      this.timpani(start + k * step, {
+        gain: (gain * weight) / Math.sqrt(strokes) * 1.6,
+        midi,
+        reverb,
+        bus,
+        track,
+      });
+    }
   }
 
   /**

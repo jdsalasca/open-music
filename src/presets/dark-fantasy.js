@@ -123,11 +123,11 @@ export function render({ seconds = undefined, seed = 7, sampleRate = 44100, stem
 
     // -- Transitions ---------------------------------------------------------
     if (isSectionStart && intensity >= 0.55) {
-      studio.tamTam(start, { gain: 0.11 * intensity, reverb: 0.6, track: 'percussion' });
+      studio.tamTam(start, { gain: 0.06 * intensity, reverb: 0.6, track: 'percussion' });
       studio.crash(start, { gain: 0.06, pan: -0.2, reverb: 0.45 });
     }
     if (isSectionStart && intensity >= 0.8) {
-      studio.impact(start, { gain: 0.26, reverb: 0.55, track: 'percussion' });
+      studio.impact(start, { gain: 0.1, reverb: 0.55, track: 'percussion' });
     }
     const isFinalSection = section.name === 'coda';
     if (isSectionEnd && !isFinalSection && barsInSection >= 4 && intensity < 0.9) {
@@ -335,11 +335,11 @@ export function render({ seconds = undefined, seed = 7, sampleRate = 44100, stem
     // -- Timpani -------------------------------------------------------------
     if (section.layers.includes('timpani')) {
       if (isChordChange) {
-        studio.timpani(start + jitter() * 0.3, { gain: 0.34 * (0.5 + intensity), midi: chord[0] - 12, track: 'timpani' });
+        studio.timpani(start + jitter() * 0.3, { gain: 0.17 * (0.5 + intensity), midi: chord[0] - 12, track: 'timpani' });
       }
       if (intensity > 0.5 && barInSection % 2 === 1) {
-        studio.timpani(at(3.5), { gain: 0.24 * intensity, midi: chord[0] - 12, track: 'timpani' });
-        studio.timpani(at(3.75), { gain: 0.2 * intensity, midi: chord[0] - 12, track: 'timpani' });
+        studio.timpani(at(3.5), { gain: 0.15 * intensity, midi: chord[0] - 12, track: 'timpani' });
+        studio.timpani(at(3.75), { gain: 0.12 * intensity, midi: chord[0] - 12, track: 'timpani' });
       }
       if (isSectionEnd && intensity > 0.5) {
         // Roll into the next section.
@@ -356,9 +356,9 @@ export function render({ seconds = undefined, seed = 7, sampleRate = 44100, stem
     if (section.layers.includes('drums')) {
       studio.bassDrum(start, { gain: 0.5 * (0.5 + intensity), track: 'percussion', reverb: 0.22 });
       studio.bassDrum(at(2.5), { gain: 0.32 * (0.5 + intensity), track: 'percussion', reverb: 0.22 });
-      studio.snare(at(2), { gain: 0.3 * (0.5 + intensity), track: 'percussion', reverb: 0.3, pan: 0 });
+      studio.snare(at(2), { gain: 0.15 * (0.5 + intensity), track: 'percussion', reverb: 0.3, pan: 0 });
       if (intensity > 0.8) {
-        studio.clap(at(2), { gain: 0.16, track: 'percussion', reverb: 0.3 });
+        studio.clap(at(2), { gain: 0.075, track: 'percussion', reverb: 0.3 });
       }
       for (let eighth = 0; eighth < 8; eighth += 1) {
         studio.hat(at(eighth * 0.5), {
@@ -370,14 +370,14 @@ export function render({ seconds = undefined, seed = 7, sampleRate = 44100, stem
       }
       if (barInSection % 4 === 3) {
         for (let s = 0; s < 4; s += 1) {
-          studio.snare(at(3 + s * 0.25), { gain: 0.1 + s * 0.045, pan: 0.1, track: 'percussion', reverb: 0.3 });
+          studio.snare(at(3 + s * 0.25), { gain: 0.045 + s * 0.02, pan: 0.1, track: 'percussion', reverb: 0.3 });
         }
       }
     }
 
     // -- Sub bass ------------------------------------------------------------
     if (section.layers.includes('sub') && isChordChange) {
-      studio.subBass(start, chordBars * arrangement.bar * 0.95, chord[0] - 24, { gain: 0.2, track: 'sub' });
+      studio.subBass(start, chordBars * arrangement.bar * 0.95, chord[0] - 24, { gain: 0.11, track: 'sub' });
     }
 
     // -- Percussion accents --------------------------------------------------
