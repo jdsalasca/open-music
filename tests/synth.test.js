@@ -165,3 +165,59 @@ test('expressive leaves a full-velocity note unchanged', () => {
   };
   assert.deepEqual(render(true), render(false));
 });
+
+test('phrase records every note exactly once', async () => {
+  const { Score } = await import('../src/midi.js');
+  const score = new Score({ bpm: 120, name: 'Phrase test' });
+  score.addTrack('lead', { program: 0 });
+  const studio = new Studio({ sampleRate: SR, seconds: 3, seed: 6, score });
+  studio.phrase(
+    [
+      { start: 0.1, duration: 0.3, midi: 60 },
+      { start: 0.4, duration: 0.3, midi: 67 },
+      { start: 0.7, duration: 0.4, midi: 72 },
+    ],
+    { track: 'lead', gain: 0.3, wave: 'sine', unison: 1, cutoff: 18000, vibrato: 0, release: 0.2 },
+  );
+  assert.equal(studio.stats.notes, 3);
+  assert.equal(score.tracks.find((track) => track.name === 'lead').notes.length, 3);
+});
+
+test('phrase glides upward and stays finite', () => {
+  const studio = new Studio({ sampleRate: SR, seconds: 2, seed: 6 });
+  studio.phrase(
+    [
+      { start: 0.05, duration: 0.4, midi: 60 },
+      { start: 0.45, duration: 0.4, midi: 72 },
+    ],
+    { gain: 0.3, wave: 'sine', unison: 1, cutoff: 18000, vibrato: 0, glide: 0.02, release: 0.1 },
+  );
+  studio.finish({ targetLufs: null, fadeOut: 0 });
+  const { left } = studio.master;
+  const zcr = (from, to) => {
+    let crossings = 0;
+    for (let i = from + 1; i < to; i += 1) if (Math.sign(left[i]) !== Math.sign(left[i - 1])) crossings += 1;
+    return crossings;
+  };
+  const first = zcr(Math.round(0.1 * SR), Math.round(0.35 * SR));
+  const last = zcr(Math.round(0.55 * SR), Math.round(0.8 * SR));
+  assert.ok(last > first * 1.5, `expected a rise in pitch (${first} -> ${last} crossings)`);
+  for (let i = 0; i < left.length; i += 1) assert.ok(Number.isFinite(left[i]));
+});
+
+test('phrase renders deterministically for a given seed', () => {
+  const once = (seed) => {
+    const studio = new Studio({ sampleRate: SR, seconds: 2, seed });
+    studio.phrase(
+      [
+        { start: 0.05, duration: 0.4, midi: 60 },
+        { start: 0.45, duration: 0.4, midi: 67 },
+      ],
+      { gain: 0.3, wave: 'saw', release: 0.1 },
+    );
+    studio.finish({ targetLufs: null, fadeOut: 0 });
+    return studio.master.left;
+  };
+  assert.deepEqual(once(8), once(8));
+  assert.notDeepEqual(once(8), once(9));
+});

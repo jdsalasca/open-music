@@ -190,7 +190,7 @@ export class Studio {
    * @param {object} o
    * @param {number} o.start seconds
    * @param {number} o.duration seconds of the sustained portion
-   * @param {number} o.freq Hz
+   * @param {number | ((t: number) => number)} o.freq Hz, or a pitch function of time for legato lines
    * @param {string} [o.wave]
    * @param {number} [o.gain]
    * @param {number} [o.attack] @param {number} [o.decay] @param {number} [o.sustain] @param {number} [o.release]
@@ -270,9 +270,10 @@ export class Studio {
     this.stats.notes += 1;
     this.record({ track, start, duration, midi, velocity });
 
+    const freqIsFn = typeof freq === 'function';
     for (let v = 0; v < voiceCount; v += 1) {
       const offset = voiceCount === 1 ? 0 : (v / (voiceCount - 1) - 0.5) * 2;
-      const freqV = freq * (1 + detune) * 2 ** ((offset * spread) / 12);
+      const freqAt = (t) => (freqIsFn ? freq(t) : freq) * (1 + detune) * 2 ** ((offset * spread) / 12);
       const panV = Math.max(-1, Math.min(1, pan + offset * unisonPan));
       const pg = this.panGains(panV);
       const gl = pg.l;
@@ -281,7 +282,7 @@ export class Studio {
       const rr = gr * reverb;
       const dl = gl * delay;
       const dr = gr * delay;
-      const phaseStep = freqV / sr;
+      const phaseStep = freqIsFn ? 0 : freqAt(0) / sr;
       const baseCut = cutoff * bright;
       const peakCut = useFilter ? Math.min(cutoff * bright * (1 + filterEnv), sr * 0.45) : 0;
       const svf = useFilter ? new SVF(sr) : null;
@@ -305,8 +306,9 @@ export class Studio {
           const depth = vibratoDelay > 0 ? Math.min(1, i / vS) : 1;
           p += (Math.sin(TAU * vibratoRate * t) * vibrato * depth) / 12;
         }
-        let sample = oscillator(wave, p, phaseStep);
-        phase += phaseStep;
+        const step = freqIsFn ? freqAt(t) / sr : phaseStep;
+        let sample = oscillator(wave, p, step);
+        phase += step;
 
         if (useFilter) {
           if (frames === 0) {
@@ -331,6 +333,97 @@ export class Studio {
           delR[idx] += out * dr;
         }
       }
+    }
+  }
+
+  /**
+   * Legato line: one continuous envelope and filter, with the pitch gliding
+   * between notes. Events are expected in time order and not to overlap.
+   *
+   * shortcut: one velocity covers the whole phrase; split the phrase when
+   * per-note dynamics matter.
+   *
+   * @param {Array<{ start: number, duration: number, midi: number }>} events
+   * @param {object} [opts] the `tone` options, plus `glide` in seconds
+   */
+  phrase(events, {
+    wave = 'saw',
+    gain = 0.06,
+    attack = 0.12,
+    decay = 0.3,
+    sustain = 0.9,
+    release = 0.6,
+    pan = 0,
+    cutoff = 1800,
+    res = 0.9,
+    filterEnv = 0.8,
+    filterDecay = 0.8,
+    detune = 0,
+    unison = 2,
+    spread = 0.06,
+    unisonPan = 0.2,
+    vibrato = 0.06,
+    vibratoRate = 5.2,
+    vibratoDelay = 0.25,
+    reverb = 0.4,
+    delay = 0.05,
+    bus = null,
+    track = null,
+    velocity = 1,
+    glide = 0.05,
+  } = {}) {
+    const notes = events.filter((event) => event.duration > 0).sort((a, b) => a.start - b.start);
+    if (notes.length === 0) return;
+    const first = notes[0].start;
+    const last = notes[notes.length - 1];
+    const span = last.start + last.duration - first;
+    if (span <= 0) return;
+
+    let index = 0;
+    const pitchAt = (t) => {
+      const at = first + t;
+      while (index + 1 < notes.length && notes[index + 1].start <= at) index += 1;
+      const note = notes[index];
+      if (index === 0 || glide <= 0) return midiToFreq(note.midi);
+      const previous = notes[index - 1];
+      const progress = (at - note.start) / glide;
+      if (progress >= 1) return midiToFreq(note.midi);
+      if (progress <= 0) return midiToFreq(previous.midi);
+      return midiToFreq(previous.midi + (note.midi - previous.midi) * progress);
+    };
+
+    this.tone({
+      start: first,
+      duration: span,
+      freq: pitchAt,
+      wave,
+      gain,
+      attack,
+      decay,
+      sustain,
+      release,
+      pan,
+      cutoff,
+      res,
+      filterEnv,
+      filterDecay,
+      detune,
+      unison,
+      spread,
+      unisonPan,
+      vibrato,
+      vibratoRate,
+      vibratoDelay,
+      reverb,
+      delay,
+      bus,
+      velocity,
+      midi: null,
+      track: null,
+    });
+    this.stats.notes += notes.length - 1;
+    for (const note of notes) {
+      this.record({ track, start: note.start, duration: note.duration, midi: note.midi, velocity });
     }
   }
 
