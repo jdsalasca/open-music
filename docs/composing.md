@@ -60,9 +60,9 @@ one transformation per section:
   between instruments.
 - **Reharmonization**: keep the melody, change the chords underneath.
 
-The reference uses all five: theme A in D minor, the same theme sequenced into
-G minor, a fragment in the development, the augmented theme in the assault, and
-theme B in F major.
+The reference uses four of them: theme A in D minor, the same theme sequenced
+into G minor, a fragment in the development, the augmented theme in the assault,
+and theme B in F major as the contrasting second subject.
 
 ## 4. Give the harmony somewhere to go
 
@@ -118,7 +118,8 @@ A root on every beat is a pedal, not a bass line.
 - Hymn, development and coda: four quarter notes, `root – fifth – octave –
   chromatic approach` to the next root.
 - Keep the bass below the trombones and above the kick's fundamental. In this
-  engine, `chord.root - 12` puts the tuba in D2–A2.
+  engine, `chord.root - 12` puts D and A in the tuba's low register; for higher
+  chords, hand the upper notes of the line to the cello.
 
 ## 7. Make it breathe
 
@@ -182,5 +183,5 @@ ffmpeg -hide_banner -nostats -i track.mp3 -af ebur128=peak=true -f null -
 `src/presets/soviet-march.js` is 92 bars in six sections: a call, theme A, theme
 B in F major, a development through G minor and the Neapolitan, an assault with
 the theme in augmentation, and a coda with a Picardy third. It uses
-`Studio({ expressive: true })`, `phrase()` for the themes and the walking bass,
-and named buses for the stems.
+`Studio({ expressive: true })`, `phrase()` for the themes, one-shot `tuba` notes
+for the walking bass, and named buses for the stems.

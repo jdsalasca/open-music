@@ -88,7 +88,7 @@ class Bus {
  */
 export class Studio {
   /**
-   * @param {{ sampleRate?: number, seconds?: number, seed?: number, stems?: boolean, score?: import('./midi.js').Score | null }} [opts]
+   * @param {{ sampleRate?: number, seconds?: number, seed?: number, stems?: boolean, score?: import('./midi.js').Score | null, expressive?: boolean }} [opts]
    *        `stems: true` keeps every named bus separate (for stem export) at the
    *        cost of one stereo buffer per bus instead of a single shared one.
    */
@@ -338,7 +338,9 @@ export class Studio {
 
   /**
    * Legato line: one continuous envelope and filter, with the pitch gliding
-   * between notes. Events are expected in time order and not to overlap.
+   * between notes. Events are sorted by start time and should not overlap.
+   * `bus` defaults to `track`, so the audio lands on the same stem the score
+   * records to.
    *
    * shortcut: one velocity covers the whole phrase; split the phrase when
    * per-note dynamics matter.
@@ -380,8 +382,13 @@ export class Studio {
     if (span <= 0) return;
 
     let index = 0;
+    let lastAt = -Infinity;
     const pitchAt = (t) => {
       const at = first + t;
+      // tone() renders each unison voice in a fresh sweep from t = 0, so the
+      // cursor has to rewind when time goes backwards.
+      if (at < lastAt) index = 0;
+      lastAt = at;
       while (index + 1 < notes.length && notes[index + 1].start <= at) index += 1;
       const note = notes[index];
       if (index === 0 || glide <= 0) return midiToFreq(note.midi);
@@ -416,7 +423,7 @@ export class Studio {
       vibratoDelay,
       reverb,
       delay,
-      bus,
+      bus: bus ?? track,
       velocity,
       midi: null,
       track: null,

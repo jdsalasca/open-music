@@ -221,3 +221,42 @@ test('phrase renders deterministically for a given seed', () => {
   assert.deepEqual(once(8), once(8));
   assert.notDeepEqual(once(8), once(9));
 });
+
+test('phrase keeps every unison voice moving', () => {
+  const studio = new Studio({ sampleRate: SR, seconds: 2, seed: 1 });
+  studio.phrase(
+    [
+      { start: 0.05, duration: 0.3, midi: 60 },
+      { start: 0.35, duration: 0.3, midi: 76 },
+      { start: 0.65, duration: 0.3, midi: 64 },
+    ],
+    { gain: 0.3, wave: 'sine', unison: 2, unisonPan: 1, spread: 0, cutoff: 18000, vibrato: 0, glide: 0.02, release: 0.1 },
+  );
+  studio.finish({ targetLufs: null, fadeOut: 0 });
+  const zcr = (samples, from, to) => {
+    let crossings = 0;
+    for (let i = from + 1; i < to; i += 1) if (Math.sign(samples[i]) !== Math.sign(samples[i - 1])) crossings += 1;
+    return crossings;
+  };
+  const left = zcr(studio.master.left, Math.round(0.1 * SR), Math.round(0.3 * SR));
+  const right = zcr(studio.master.right, Math.round(0.1 * SR), Math.round(0.3 * SR));
+  assert.ok(
+    Math.abs(left - right) < left * 0.2,
+    `the unison voices diverged at the start (left ${left} vs right ${right} crossings)`,
+  );
+});
+
+test('phrase routes audio to the track bus when no bus is given', () => {
+  const studio = new Studio({ sampleRate: SR, seconds: 2, stems: true });
+  studio.phrase([{ start: 0.05, duration: 0.5, midi: 60 }], {
+    track: 'lead',
+    gain: 0.3,
+    wave: 'sine',
+    unison: 1,
+    cutoff: 18000,
+    vibrato: 0,
+  });
+  studio.finish({ targetLufs: null, fadeOut: 0 });
+  assert.ok(studio.buses.has('lead'), 'phrase did not create the track bus');
+  assert.ok(energy(studio.buses.get('lead').left) > 0, 'the track bus is silent');
+});

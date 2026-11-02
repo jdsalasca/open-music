@@ -6,7 +6,7 @@
  * theme in augmentation, and a coda that turns to D major.
  *
  * The material is original: a rising-fourth theme developed by sequence,
- * inversion and augmentation. It quotes no anthem, no song and no recording.
+ * fragmentation and augmentation. It quotes no anthem, no song and no recording.
  */
 
 import { Studio } from '../synth.js';
@@ -416,13 +416,17 @@ export function render({ seconds = undefined, seed = 7, sampleRate = 44100, stem
       const local = Math.min(1, 0.35 + 0.65 * growth);
       const quiet = barInSection >= barsInSection - 2;
 
-      studio.tuba(at(0), barSeconds * 0.9, root - 12, {
-        gain: 0.09 * (quiet ? 0.5 : local),
-        velocity: vel(0.6),
-        bus: 'bajo',
-        track: 'tuba',
-        midi: root - 12,
-      });
+      if (quiet) {
+        studio.tuba(at(0), barSeconds * 0.9, root - 12, {
+          gain: 0.045,
+          velocity: vel(0.5),
+          bus: 'bajo',
+          track: 'tuba',
+          midi: root - 12,
+        });
+      } else {
+        walkingBass(studio, { at, beat, chord, nextChord, level: local, vel, bus: 'bajo', track: 'tuba' });
+      }
 
       if (!quiet) {
         const voices = voiceLead(prevChoir, chord.notes, { min: 48, max: 72 });
@@ -572,7 +576,7 @@ export function render({ seconds = undefined, seed = 7, sampleRate = 44100, stem
         studio.tuba(at(0), beat * 3, 38, { gain: 0.13, velocity: 0.9, bus: 'bajo', track: 'tuba', midi: 38 });
         studio.timpani(at(0), { gain: 0.35, midi: 38, bus: 'drums', track: 'drums' });
         studio.tamTam(start, { gain: 0.14, bus: 'drums', track: 'drums' });
-        studio.impact(start, { gain: 0.25 });
+        studio.impact(start, { gain: 0.25, bus: 'drums', track: 'drums' });
       } else {
         if (index === 0) {
           const fragment = THEME_A.slice(0, 8);

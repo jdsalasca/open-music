@@ -33,3 +33,32 @@ test('a very short render still produces audio and several buses', () => {
   }
   assert.ok(peak > 0.01, `short render was silent (peak ${peak})`);
 });
+
+/** @param {Float32Array} samples */
+function energy(samples) {
+  let sum = 0;
+  for (let i = 0; i < samples.length; i += 1) sum += samples[i] * samples[i];
+  return sum;
+}
+
+test('the stems keep the horns and winds, and the impact stays off the main bus', () => {
+  const studio = render({ seconds: 40, seed: 3, sampleRate: 22050, stems: true });
+  for (const name of ['horns', 'winds', 'drums']) {
+    assert.ok(studio.buses.has(name), `missing ${name} bus`);
+    const bus = studio.buses.get(name);
+    assert.ok(energy(bus.left) + energy(bus.right) > 0, `${name} bus is silent`);
+  }
+  assert.ok(energy(studio.buses.get('main').left) < 1e-6, 'the main bus should be silent');
+});
+
+test('the development walks the bass and the coda lands on a Picardy third', () => {
+  const score = new Score({ bpm: meta.bpm, name: meta.name });
+  for (const track of meta.tracks) score.addTrack(track.name, { program: track.program, drum: track.drum });
+  render({ seconds: meta.naturalSeconds(), seed: 7, sampleRate: 22050, score });
+  const tuba = score.tracks.find((track) => track.name === 'tuba');
+  const development = tuba.notes.filter((note) => note.start >= 110.7 && note.start < 147.7);
+  assert.ok(development.length >= 40, `only ${development.length} bass notes in the development`);
+  const trumpet = score.tracks.find((track) => track.name === 'trumpet');
+  const last = trumpet.notes.slice(-4).map((note) => note.midi);
+  assert.ok(last.includes(66), `final trumpet chord ${last} has no F#`);
+});
