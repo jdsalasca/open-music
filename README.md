@@ -19,7 +19,7 @@ Zero dependencies. Only Node and (optionally) `ffmpeg` for MP3.
 | `dark-fantasy` | Dark Fantasy Suite | Cinematic orchestral soul in F minor, 72 BPM | 267 s |
 | `bound-soul` | Bound Soul | Chopped soul in B-flat major, 94 BPM | 204 s |
 | `symphony` | Symphony in C minor | Sonata form for full orchestra, 60 → 132 BPM | 355 s |
-| `soviet-march` | Marcha del Frente | Stern military march in D minor, 108 BPM | 107 s |
+| `soviet-march` | Marcha del Frente | Concert march in D minor, 104 BPM | 212 s |
 
 ### `galactic` — Orbital Suite
 
@@ -74,15 +74,17 @@ node src/cli.js form --preset symphony
 
 ### `soviet-march` — Marcha del Frente
 
-Snare in eighths with the tuba holding the step on beats one and three, trombones answering as "pah" on two and four, a trumpet fanfare over them and a wordless choir in the middle section. Four chords cycling every two bars — i, ♭VII, ♭VI, V — under an eight-note cell (A A F A C A F D) that is transposed and sequenced across five sections: *llamada*, *marcha*, *himno*, *asalto*, *coda*.
+A 92-bar concert march in D minor at 104 BPM, in six sections: a snare-and-timpani *llamada*, the march theme on trumpets with a horn doubling, a lyrical *himno* in F major, a development through G minor and the Neapolitan ♭II, an *asalto* with the theme in augmentation, and a *coda* that cadences into D major.
 
-Written as the score for the browser game *Free the Nation!*, where it loops under a cardboard battlefield.
+Theme A is an eight-bar period — a rising fourth and a stepwise answer — developed by sequence, fragmentation and augmentation. The bass alternates root and fifth in the march, then walks root–fifth–octave–chromatic approach through the hymn and coda. Velocity drives brightness, not just volume, and the themes are legato phrases rather than separate notes.
+
+Originally written as the loop for the browser game *Free the Nation!*, which ships its own render; this version is the concert piece.
 
 An original march in the harmonic and orchestral language of the genre: it quotes no anthem, no song and no recording, and every note comes from the seed.
 
 ```bash
 node src/cli.js form --preset soviet-march
-# Marcha del Frente: llamada:4 marcha:16 himno:16 asalto:8 coda:4
+# Marcha del Frente: llamada:8 marcha:24 himno:16 desarrollo:16 asalto:16 coda:12
 ```
 
 ## CLI
@@ -124,7 +126,8 @@ src/
     ├── galactic.js
     ├── dark-fantasy.js
     ├── bound-soul.js
-    └── symphony.js
+    ├── symphony.js
+    └── soviet-march.js
 ```
 
 Signal flow:
@@ -141,6 +144,8 @@ Notable choices:
 
 - **Band-limited oscillators.** Saw and square use PolyBLEP, so high arpeggios do not fold aliases back into the audible range.
 - **Resonant filter with its own envelope.** Voices run through a TPT state-variable filter whose cutoff is modulated per note, which is where most of the character comes from.
+- **Velocity is timbre.** With `Studio({ expressive: true })`, a hard note is brighter as well as louder, and a soft note is darker. It is opt-in so the other presets keep their exact renders.
+- **Legato phrases.** `studio.phrase()` renders a melodic line as one continuous envelope with pitch glides between notes, instead of re-attacking every note.
 - **Additive winds.** The flute, oboe, clarinet and bassoon are harmonic series summed through one phase accumulator, so the vibrato moves every partial together instead of beating between them. The clarinet gets odd partials only, because it is a closed pipe and that is why it sounds hollow. A breath-noise layer and a chiff give the flute its air.
 - **FM electric piano.** The Rhodes is a two-operator FM voice with a decaying modulation index — the bell-like tine attack is the modulation decaying out, not a sample.
 - **Brass by family.** Trumpet, trombone and tuba share one filter-swept unison-saw core and differ in bite (how fast the filter opens) and brightness, which is what actually separates them.
@@ -196,6 +201,12 @@ export const meta = {
 ```
 
 Pass `midi` to a voice to record it into the score, and `track` to choose which MIDI track it lands on. `naturalSeconds()` and `form()` are optional but both the CLI and the tests use them.
+
+## Composing a new piece
+
+The engine schedules and synthesises; it does not choose the notes for you. `docs/composing.md` is the craft guide — form, themes, harmony, register, dynamics, mix — and `docs/agent-prompt.md` is a ready prompt you can hand to an agent. `src/presets/soviet-march.js` is the reference.
+
+The rules that matter most: a theme you could sing, a form with contrast, a bass that moves, one family per register, and space before the climax.
 
 ## Library use
 
