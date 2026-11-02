@@ -19,6 +19,7 @@ Zero dependencies. Only Node and (optionally) `ffmpeg` for MP3.
 | `dark-fantasy` | Dark Fantasy Suite | Cinematic orchestral soul in F minor, 72 BPM | 267 s |
 | `bound-soul` | Bound Soul | Chopped soul in B-flat major, 94 BPM | 204 s |
 | `symphony` | Symphony in C minor | Sonata form for full orchestra, 60 → 132 BPM | 355 s |
+| `soviet-march` | Marcha del Frente | Stern military march in D minor, 108 BPM | 107 s |
 
 ### `galactic` — Orbital Suite
 
@@ -69,6 +70,19 @@ An original composition in the Classical style: the thematic material is a delib
 ```bash
 node src/cli.js form --preset symphony
 # Symphony in C minor: grave:16 exposition:48 development:40 recapitulation:48 coda:24
+```
+
+### `soviet-march` — Marcha del Frente
+
+Snare in eighths with the tuba holding the step on beats one and three, trombones answering as "pah" on two and four, a trumpet fanfare over them and a wordless choir in the middle section. Four chords cycling every two bars — i, ♭VII, ♭VI, V — under an eight-note cell (A A F A C A F D) that is transposed and sequenced across five sections: *llamada*, *marcha*, *himno*, *asalto*, *coda*.
+
+Written as the score for the browser game *Free the Nation!*, where it loops under a cardboard battlefield.
+
+An original march in the harmonic and orchestral language of the genre: it quotes no anthem, no song and no recording, and every note comes from the seed.
+
+```bash
+node src/cli.js form --preset soviet-march
+# Marcha del Frente: llamada:4 marcha:16 himno:16 asalto:8 coda:4
 ```
 
 ## CLI
