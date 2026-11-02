@@ -92,7 +92,7 @@ export class Studio {
    *        `stems: true` keeps every named bus separate (for stem export) at the
    *        cost of one stereo buffer per bus instead of a single shared one.
    */
-  constructor({ sampleRate = 44100, seconds = 160, seed = 7, stems = false, score = null } = {}) {
+  constructor({ sampleRate = 44100, seconds = 160, seed = 7, stems = false, score = null, expressive = false } = {}) {
     this.sr = sampleRate;
     this.seconds = seconds;
     this.length = Math.max(1, Math.ceil(seconds * sampleRate));
@@ -100,6 +100,7 @@ export class Studio {
     this.rng = mulberry32(seed);
     this.stems = stems;
     this.score = score;
+    this.expressive = expressive;
     this.buses = new Map();
     this.main = new Bus(this.length, 'main');
     this.buses.set('main', this.main);
@@ -263,6 +264,9 @@ export class Studio {
     const voiceCount = Math.max(1, Math.round(unison));
     const useFilter = cutoff < sr * 0.45;
     const amount = gain * velocity;
+    // A hard note is brighter, not just louder. Opt-in so existing presets keep
+    // their exact renders.
+    const bright = this.expressive ? 0.55 + 0.45 * velocity : 1;
     this.stats.notes += 1;
     this.record({ track, start, duration, midi, velocity });
 
@@ -278,8 +282,8 @@ export class Studio {
       const dl = gl * delay;
       const dr = gr * delay;
       const phaseStep = freqV / sr;
-      const baseCut = cutoff;
-      const peakCut = useFilter ? Math.min(cutoff * (1 + filterEnv), sr * 0.45) : 0;
+      const baseCut = cutoff * bright;
+      const peakCut = useFilter ? Math.min(cutoff * bright * (1 + filterEnv), sr * 0.45) : 0;
       const svf = useFilter ? new SVF(sr) : null;
       let phase = voiceCount === 1 ? 0 : this.rng();
       let frames = 0;
@@ -760,6 +764,7 @@ export class Studio {
     const b = this.busFor(bus, track);
     const pg = this.panGains(pan);
     const freq = midiToFreq(midi) * (1 + detune);
+    const bright = this.expressive ? 0.5 + 0.5 * velocity : 1;
     const out = gain * velocity;
     const releaseStart = Math.max(0.02, duration);
     const attackSamples = Math.max(1, attack * sr);
@@ -772,7 +777,7 @@ export class Studio {
       const bend = 1 + vibrato * vibEnv * Math.sin(TAU * vibratoRate * t);
       phase += (TAU * freq * bend) / sr;
       let acc = 0;
-      for (let p = 0; p < partials.length; p += 1) acc += Math.sin(phase * (p + 1)) * partials[p];
+      for (let p = 0; p < partials.length; p += 1) acc += Math.sin(phase * (p + 1)) * (p === 0 ? partials[p] : partials[p] * bright ** p);
       const env = Math.min(1, i / attackSamples);
       const tail = t > releaseStart ? Math.max(0, 1 - (t - releaseStart) / release) : 1;
       const breath = air > 0 ? this.noise() * air * Math.min(1, t * 60) : 0;

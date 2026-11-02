@@ -138,3 +138,30 @@ test('every voice survives a full render without producing NaN', () => {
   }
   assert.ok(Number.isFinite(studio.lufs), 'loudness was not measured');
 });
+
+/** Energy of the first difference: a cheap brightness proxy. */
+function brightness(samples) {
+  let diff = 0;
+  for (let i = 1; i < samples.length; i += 1) diff += (samples[i] - samples[i - 1]) ** 2;
+  return diff / Math.max(1, energy(samples));
+}
+
+test('expressive velocity darkens a soft note', () => {
+  const render = (velocity) => {
+    const studio = new Studio({ sampleRate: SR, seconds: 2, seed: 4, expressive: true });
+    studio.tone({ start: 0.05, duration: 0.6, freq: 220, wave: 'saw', gain: 0.5, cutoff: 3000, velocity, attack: 0.005, release: 0.1 });
+    studio.finish({ targetLufs: null, fadeOut: 0 });
+    return studio.master.left.slice(Math.round(0.1 * SR), Math.round(0.6 * SR));
+  };
+  assert.ok(brightness(render(1)) > brightness(render(0.25)) * 1.3);
+});
+
+test('expressive leaves a full-velocity note unchanged', () => {
+  const render = (expressive) => {
+    const studio = new Studio({ sampleRate: SR, seconds: 2, seed: 4, expressive });
+    studio.tone({ start: 0.05, duration: 0.6, freq: 220, wave: 'saw', gain: 0.5, cutoff: 3000, velocity: 1 });
+    studio.finish({ targetLufs: null, fadeOut: 0 });
+    return studio.master.left;
+  };
+  assert.deepEqual(render(true), render(false));
+});
